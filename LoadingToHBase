@@ -1,0 +1,84 @@
+object KafkaHbaseSpark {
+  def main(args:Array[String]): Unit = {
+    //creating a spark conf
+  val conf = new SparkConf().setMaster("local[*]").setAppName("Kafka_Spark_Hbase_Anyname we can give") ;
+
+  //creating a sparkstreaming context . Input is config, time after which the streaming context will listen to the input.  
+  val ssc = new StreamingContext(conf, Seconds(5))
+
+    // now our streaming context is defined now lets define kafka params
+    //We are going to persist kafka output to hbase
+  /* We are doing this so that we can define the inputs as an object into kafka so kafka will first need zookeeper server.
+        Default port is 9092 we define local host:9092
+    */
+  val kafkaParams = Map[String, Object](){
+
+    //defining zookeeper server. we define it as bootstrap -mandatory
+    elems = "bootstrap.servers" -> "localhost:9092",
+
+    //then we need key and value deserializers -mandatory
+    "key.deserializer" -> classOf[StringDeserializer] ,
+
+    //lly we define the value deserializer -mandatory
+    "value.deserializer" -> classOf[StringDeserializer]
+
+    /*now lets give the group id. groupid is for the kafkaproducer that we will be. the messages that will becoming from the kafkatopic that will be from that group. GRP2 can be anything -mandatory
+*/
+    "group.id" -> "GRP2",
+
+    //now lets define the offset
+    "auto.offset.reset" -> "latest",
+
+    //lets disable the commit
+    "enable.auto.commit" -> (false: java.lang.Boolean))
+
+  //now lets hear the topic that it should hear to
+  val topics =  Array("KafkaTutorial")
+
+  //its allowed to use PreferConsistent for big data so that it evenly distribute request to all executors. Subscrive takes in topics from kafka params
+  val KafkaStream = KafkaUtils.createDirectStream[String, String] (ssc, PreferConsistent,
+  Subscribe[String,String](topics,KafkaParams))
+
+  //we are doing the same wordcount operation
+  val split = kafkaStream.map(record=> (record.key(), record.value.toString)).flatmap(x=> x._2.split(regex = " "))
+  val updateFunc = (values:Seq[Int], state: Option[Int]) => {
+    val currentCount = values.foldLeft(0) (_+_)
+    val previousCount = state.getOrElse(0)
+    val updatedSum = currentCount + previousCount
+    Some(updatedSum)
+  }
+  
+  // Kafka Part is done now lets update HBase
+  /*When we define hbase with spark streaming we have to define a checkpoint directory(this is nothing but a directory in our HDFS ) we have to put the HDFS path the checkpoint method
+*/
+  /* we can check it from the core-site.xml (cd /etc/hadoop/conf/ -folder) subl (sublime) core-site.xml - we can find the path to our hdfs and in there we can give a new directory
+*/
+  ssc.checkpoint(directory = "hdfs://quickstart.cloudera:8020/KafkaHBase(this folder can be anyname)")
+  /* what ever updated count we r getting from our updateFunc we can persist the final value to HBase. what ever update we get from the updateStateByKey we add that up in reduce bykey
+*/
+  val count = split.map(x => (x,1)).reduceByKey(_+_)).updateStateByKey(updateFunc)
+  
+  //we now define a function that inserts the data into HBase
+  def toHbase(row : {_,_}): Unit = {
+
+    //need to setup all these for creating a hbase table
+    val hconf = new HBaseConfiguration()
+    hconf.set("hbase.zookeeper.quorum(name of our zookeeper server)", "localhost:2181")
+    val tableName = "Prashant_sparkHbase"
+    val hTable = new HTable(hconf, tableName)
+    val tableDescriptor = new HTableDescriptor(tableName)
+
+    //Hbase takes everyinput and stores it into byte array
+    //we have to use the put function while inserting the data
+    val thePut = new Put(Bytes.toBytes(row._1.toString()))
+    thePut.add(Bytes.toBytes("WordCount"), Bytes.toBytes("Count"), Bytes.toBytes(row._2.toString))
+    htable.put(thePut)
+  }
+
+  //now to insert the same into HBase we can apply foreach RDD for the count we added.
+  val HBase_insert = count.foreachRDD(rdd => if(!rdd.isEmpty()) rdd.foreach(toHbase(_)))
+  ssc.start()
+  ssc.awaitTermination()
+  //before starting the application create the Hbase shell table that we want
+  }
+}
