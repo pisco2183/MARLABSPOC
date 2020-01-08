@@ -1,0 +1,24 @@
+//sqoop incremental append
+sqoop job --create deptjob \
+--import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password-file file:///home/cloudera/pipelines/pwdfile.txt \
+--table departments \
+-m 1 \
+--target-dir /user/cloudera/sqoopdata/departments \
+--incremental append \
+--check-column department_id
+--LastValue = 0
+
+//Sqoop Updates 
+Sqoop export \
+--connect jdbc
+--username
+--password
+--export-dir
+-- table
+--update-key order_date \ (can be primary key also)
+-- input0-fields-terminated-by “\001” \
+--num-mappers 1
+--update-mode (if new rows are found with non-matching keys in the database)
