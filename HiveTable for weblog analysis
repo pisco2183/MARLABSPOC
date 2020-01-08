@@ -1,0 +1,12 @@
+//joining weblogs with products and customers data. 
+
+CREATE TABLE webloganalytics as 
+  SELECT to_data(o.ts) logdate, 
+  o.url,o.ip.o.city, upper(o.state) state, 
+  o.country, 
+  p.category, 
+  CAST(datediff(from_unixtime(unix_timestamp() ) , 
+  
+ from weblogs o 
+ inner join products p on o.url = p.url 
+ left outer join users u on o.swid =concat('{', u.swid, '}')
