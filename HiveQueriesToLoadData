@@ -1,0 +1,42 @@
+
+--loading data into hive using files 
+LOAD DATA INPATH 'hdfs-filepath" 
+OWERWRITE INTO TABLE destTable; 
+
+-- local unix file 
+LOAD DATA LOCAL INPATH 
+'Local-filepath'
+OVERWRITE INTO TABLE destTable;
+
+--pass values in query 
+INSERT INTO TABLE destTable 
+VALUES (value1), (value2); 
+
+--Creating an index for faster querying in hvie 
+CREATE INDEX index_name
+ON TABLE table_name (columns,....)
+AS 'org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler'
+WITH DEFERRED REBUILD;
+
+--Enabling dynamic partitioning in Hive 
+set hive.exec.dynamic.partition.mode=nonstrict;
+Insert into table table1 partition(year) select col1, col2,col3,col4 from table9
+
+-- hive merge statement to create a new column 
+MERGE into customer_db_json_target trg
+USING customer_source src
+ON src.id = trg.id
+WHEN MATCHED THEN UPDATE SET age = src.age
+WHEN NOT MATCHED THEN
+INSERT VALUES (src.id, src.first_name, src.last_name, src.age);
+--SET – used for not updating that particular column
+--INSERT VALUEs – inserts the values in the column.
+
+--
+--hive autoconvert join allows us to use mapside joins for smaller tables. 
+
+hive.auto.convert.join=true
+hive.mapjoin.smalltable.filesize=(default it will be 25MB)
+SELECT /*+ MAPJOIN(dataset2) */ dataset1.first_name, dataset1.eid,dataset2.eid 
+FROM dataset1 JOIN dataset2 ON dataset1.first_name = dataset2.first_name
+
