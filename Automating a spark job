@@ -1,0 +1,19 @@
+def nextDeadline() : Long = {
+  // assumes midnight on UTC timezone.
+  LocalDate.now.atStartOfDay().plusDays(1).toInstant(ZoneOffset.UTC).toEpochMilli()
+}
+// Note this is a mutable variable!
+var initRDD = sparkSession.read.parquet("/tmp/learningsparkstreaming/sensor-records.parquet")
+// Note this is a mutable variable!
+var _nextDeadline = nextDeadline()
+val lines = ssc.socketTextStream("localhost", 9999)
+// we use the foreachRDD as a scheduling trigger.
+// We don't use the data, only the execution hook
+lines.foreachRDD{ _ =>
+    if (System.currentTimeMillis > _nextDeadline) {
+      initRDD = sparkSession.read.parquet("/tmp/learningsparkstreaming/sensor-records.parquet")
+      _nextDeadline = nextDeadline()
+    }
+}
+// if the rdd was updated, it will be picked up in this stage.
+val res = lines.transform(rdd => rdd.join(initRDD))
